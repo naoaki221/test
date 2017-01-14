@@ -55,6 +55,9 @@ nnoremap gs :<C-u>Gstatus<CR>
 nnoremap gl :<C-u>Git log -n 4 --oneline --reverse --stat<CR>
 nnoremap ga :<C-u>Gwrite<CR>
 
+nnoremap /\ :<C-u>s/\//\\\\/g<CR>
+nnoremap // :<C-u>s/\\\\/\//g<CR>
+
 inoremap <C-e> <Esc>$a
 inoremap <C-a> <Esc>^a
 noremap <C-e> <Esc>$a
@@ -62,6 +65,8 @@ noremap <C-a> <Esc>^a
 
 command! ReloadVimrc source $MYVIMRC
 command! ReloadGVimrc source $MYGVIMRC
+nnoremap rv :<C-u>ReloadVimrc<CR>
+nnoremap rg :<C-u>ReloadGVimrc<CR>
 
 " Increment and decrement
 nnoremap <A-a> <C-a>
@@ -71,10 +76,6 @@ nnoremap <A-x> <C-x>
 nnoremap <Space>c :Calendar<CR>
 
 
-" install dein
-" cd ~/vimfiles
-" git clone https://github.com/Shougo/dein.vim
-" mkdir bundle
 
 if &compatible
   set nocompatible
@@ -120,13 +121,12 @@ let g:unite_kind_file_delete_directory_command = 'c:\\Users\\naoaki\\app\\gow\\b
 let g:unite_force_overwrite_statusline = 0
 
 " Vimfiler
-"let g:vimfiler_as_default_explorer = 1
+let g:vimfiler_as_default_explorer = 1
 "let g:vimfiler_safe_mode_by_default = 0
 "let g:vimfiler_force_overwrite_statusline = 0
 call vimfiler#custom#profile('default', 'context', {
 \   'safe' : 0
 \ })
-
 
 " Transparency
 autocmd GUIEnter    * set transparency=240
@@ -149,6 +149,9 @@ let g:quickrun_config = {
 let g:quickrun_config.python = {'command' : 'c:\\Users\\naoaki\\app\\WinPython34_32b\\python-3.4.4\\python.exe'}
 "let g:quickrun_config.python = {'command' : 'c:\\Users\\naoaki\\app\\WinPython27_32b\\python-2.7.12\\python.exe'}
 
+
+
+let g:zip_unzipcmd= 'c:\\Users\\naoaki\\app\\gow\\bin\\unzip.exe'
 
 
 " My wiki
