@@ -71,6 +71,10 @@ nnoremap <A-x> <C-x>
 nnoremap <Space>c :Calendar<CR>
 
 
+" install dein
+" cd ~/vimfiles
+" git clone https://github.com/Shougo/dein.vim
+" mkdir bundle
 
 if &compatible
   set nocompatible
