@@ -179,24 +179,40 @@ class Sub(QWidget):
             painter = QPainter(self)
             font = painter.font()
             font.setWeight(QFont.DemiBold)
-            font.setFamily("Meiryo")
+            #font.setFamily("Meiryo")
             font.setPixelSize(16)
             painter.setFont(font)
-            painter.setPen(Qt.red)
             #painter.setBrush(Qt.red)
             painter.drawPixmap(0, 0, self.pixmap)
             for rowid, page, x, y, text in self.list_of_memos:
                 if page == self.page:
-                    painter.drawText(x, y, text)
+                    brect = painter.boundingRect(QRectF(x, y, self.size().width() - x, self.size().height() - y), Qt.AlignLeft, text)
+                    #painter.drawText(x, brect.y() + brect.height(), text)
+                    painter.setPen(Qt.black)
+                    painter.fillRect(QRect(QPoint(brect.x() - 8, brect.y() - 8), QSize(brect.width() + 16, brect.height() + 16)), QColor(255, 255, 153))
+                    painter.drawRect(QRect(QPoint(brect.x() - 8, brect.y() - 8), QSize(brect.width() + 16, brect.height() + 16)))
+                    painter.setPen(Qt.red)
+                    painter.drawText(QRect(QPoint(brect.x(), brect.y()), QSize(brect.width(), brect.height())), Qt.AlignLeft, text)
+                    #painter.drawText(brect.x(), brect.y(), text)
             painter.end()
 # }}}
     def buildContextMenu(self, pos):# {{{
         found = -1
+        print("buildContextMenu", self)
+        font = QFont()
+        font.setWeight(QFont.DemiBold)
+        font.setPixelSize(16)
+        fmet = QFontMetrics(font)
         for i, memo in enumerate(self.list_of_memos):
             rowid, page, x, y, text = memo
-            if abs(pos.x() - x) < 32 and abs(pos.y() - y) < 32:
-                found = i
-                break
+            if self.page == page:
+                brect = fmet.boundingRect(text)
+                w = brect.width() - brect.x()
+                h = brect.height() - brect.y()
+                if x <= pos.x() and pos.x() <= x + w and y <= pos.y() and pos.y() <= y + h:
+                    found = i
+                    break
+
         if found >= 0:
             menu = QMenu(self)
             menu.addAction("Modify")
@@ -298,8 +314,9 @@ class ListView2(QListView):
                     item.setBackground(QColor(153, 204, 255))
                 self.model.appendRow(item)
 # }}}
-class Main(QMainWindow):# {{{
-    def __init__(self):
+
+class Main(QMainWindow):
+    def __init__(self):# {{{
         super().__init__()
 
         cw = QWidget(self)
