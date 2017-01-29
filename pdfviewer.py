@@ -4,6 +4,8 @@
 # vim: set foldmethod=marker:
 
 DATA_DIRS = ["./DATA", "./DATA2"]
+TAGS = ["t:TAG1", "t:TAG2", "t:TAG3"]
+
 MAIN_WIN_GEOMETRY = (50, 50, 320, 600)
 SUB_WIN_GEOMETRY = (400, 50, 600, 600)
 NOTIFY_WIN_GEOMETRY = (50, 50, 320, 240)
@@ -46,13 +48,22 @@ from sqlalchemy import and_, or_
 
 
 Base = declarative_base()
-class Doc(Base):
+class Doc(Base):# {{{
     __tablename__ = "doc"
     id = Column(Integer, primary_key = True)
     name = Column(String, unique = True)
     already_read = Column(Boolean)
+# }}}
+class Tag(Base):# {{{
+    __tablename__ = "tag"
+    id = Column(Integer, primary_key = True)
+    text = Column(String)
+    doc_id = Column(Integer, ForeignKey("doc.id"))
+    doc = relationship("Doc", back_populates = "tags")
 
-class Page(Base):
+Doc.tags = relationship("Tag", order_by = Tag.id, back_populates = "doc")
+# }}}
+class Page(Base):# {{{
     __tablename__ = "page"
     id = Column(Integer, primary_key = True)
     num = Column(Integer)
@@ -61,8 +72,8 @@ class Page(Base):
     doc = relationship("Doc", back_populates = "pages")
 
 Doc.pages = relationship("Page", order_by = Page.id, back_populates = "doc")
-
-class Memo(Base):
+# }}}
+class Memo(Base):# {{{
     __tablename__ = "memo"
     id = Column(Integer, primary_key = True)
     x = Column(Integer)
@@ -72,6 +83,7 @@ class Memo(Base):
     page = relationship("Page", back_populates = "memos")
 
 Page.memos = relationship("Memo", order_by = Memo.id, back_populates = "page")
+# }}}
 
 db_exists = os.path.exists("pdf.db")
 #engine = create_engine('sqlite:///pdf.db', echo = True)
@@ -86,6 +98,8 @@ try:
     os.mkdir(CACHE_DIR)
 except:
     pass
+
+TAGS += list(set(TAGS).difference(set([t.text for t in session.query(Tag).all()])))
 
 
 
@@ -107,16 +121,16 @@ class Notify(QWidget):
         self.timer = QTimer(self)
         self.timer.setInterval(1000 * CHECK_INT)
         self.timer.timeout.connect(self.checkNewFiles)
-
-    def getFileList(self):
+# }}}
+    def getFileList(self):# {{{
         list_of_pdf_files = []
         for data_dir in self.data_dirs:
             for fp in [os.path.join(data_dir, _fp).replace("/", "\\\\") for _fp in os.listdir(data_dir)]:
                 if fp.lower().endswith("pdf"):
                     list_of_pdf_files += [fp]
         return list_of_pdf_files
-
-    @pyqtSlot()
+# }}}
+    @pyqtSlot()# {{{
     def checkNewFiles(self):
         diff = set(self.getFileList()).difference(set(self.list_of_pdf_files))
         if diff:
@@ -217,14 +231,23 @@ class Main(QMainWindow):
 
         ly1 = QVBoxLayout()
 
+        self.tagsearch = QLineEdit("")
+        self.tagsearch.returnPressed.connect(self.filterItems)
+        self.completer = QCompleter()
+        self.tagsearch.setCompleter(self.completer)
+        self.search_candidate = QStringListModel()
+        self.completer.setModel(self.search_candidate)
+        self.search_candidate.setStringList(TAGS)
+        ly1.addWidget(self.tagsearch)
+
         self.listview = QListView()
         self.listview.setIconSize(QSize(96, 96));
-        self.listview.setGridSize(QSize(128, 128));
-        self.listview.setUniformItemSizes(True)
         self.listview.setViewMode(QListView.IconMode);
         self.listview.setResizeMode(QListView.Adjust)
         self.listview.verticalScrollBar().valueChanged.connect(self.valueChanged)
         self.listview.clicked.connect(self.itemClicked)
+        self.listview.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.listview.customContextMenuRequested.connect(self.buildContextMenu)
         self.model = QStandardItemModel()
         self.listview.setModel(self.model)
         ly1.addWidget(self.listview)
@@ -261,33 +284,41 @@ class Main(QMainWindow):
                 list_of_pdf_files_with_time += [(fp, mtime_str)]
         return sorted(list_of_pdf_files_with_time, key = lambda x: x[1], reverse = True)
 # }}}
-    def setDirs(self, dirs):# {{{
+    def setDirs(self, dirs, search_tag = None):# {{{
         self.model.removeRows(0, self.model.rowCount())
 
         list_of_files_with_time = []
         for d in dirs:
             list_of_files_with_time += self.getListOfPdfFilesWithTime(d)
         for fn, mt in sorted(list_of_files_with_time, key = lambda x: x[1], reverse = True):
+            if not search_tag:
+                doc = session.query(Doc).filter_by(name = fn).first()
+                if not doc:
+                    doc = Doc(name = fn, already_read = False)
+                    session.add(doc)
+            else:
+                doc = session.query(Doc).select_from(join(Doc, Tag))\
+                    .filter(and_(Doc.name == fn, Tag.text.like("%{}%".format(search_tag)))).first()
+                if not doc:
+                    continue
+
             item = QStandardItem(self.pdf_icon, "{}".format(mt))
             item.filename = fn
             item.mtime = mt
             item.thumb = False
-
-            with open(fn, "rb") as fh:
-                rawdata = fh.read()[:]
-            n = pypop3.get_num_of_pages(rawdata)
-            doc = session.query(Doc).filter_by(name = fn).first()
-            item.setForeground(Qt.red)
-            if doc:
-                if doc.already_read:
-                    item.setForeground(Qt.black)
+            if doc.already_read:
+                item.setForeground(Qt.black)
             else:
-                doc = Doc(name = fn, already_read = False)
-                doc.pages = [Page(num = i, rot = 0) for i in range(1, n + 1)]
-                session.add(doc)
+                item.setForeground(Qt.red)
 
             self.model.appendRow(item)
         session.commit()
+# }}}
+    def filterItems(self):# {{{
+        if len(self.tagsearch.text().strip()) > 0:
+            self.setDirs(DATA_DIRS, self.tagsearch.text())
+        else:
+            self.setDirs(DATA_DIRS)
 # }}}
     def replaceIcon(self):# {{{
         rect = self.listview.viewport().rect()
@@ -326,10 +357,15 @@ class Main(QMainWindow):
         item.setForeground(Qt.black)
         doc = session.query(Doc).filter_by(name = item.filename).first()
         if doc:
+            with open(item.filename, "rb") as fh:
+                rawdata = fh.read()[:]
+            n = pypop3.get_num_of_pages(rawdata)
+            if not doc.pages:
+                doc.pages = [Page(num = i, rot = 0) for i in range(1, n + 1)]
             doc.already_read = True
             session.commit()
-        self.sub.setFile(item.filename)
-        self.sub.show()
+            self.sub.setFile(item.filename)
+            self.sub.show()
 # }}}
     def resizeEvent(self, event):# {{{
         self.replaceIcon()
@@ -342,6 +378,29 @@ class Main(QMainWindow):
         self.notify.close()
         self.sub.close()
         self.close()
+# }}}
+    def buildContextMenu(self, pos):# {{{
+        list_of_selected_indexes = self.listview.selectionModel().selectedIndexes()
+        if list_of_selected_indexes :
+            menu = QMenu(self)
+            for t in TAGS:
+                menu.addAction(t)
+            action = menu.exec_(self.mapToGlobal(pos))
+            if action:
+                if action.text() in TAGS:
+                    for index in list_of_selected_indexes:
+                        item = self.model.item(index.row())
+                        doc = session.query(Doc).filter_by(name = item.filename).first()
+                        if doc:
+                            print([t.text for t in doc.tags])
+                            found = False
+                            for tag in doc.tags:
+                                if tag.text == action.text():
+                                    found = True
+                                    break
+                            if not found:
+                                doc.tags += [Tag(text = action.text())]
+                    session.commit()
 # }}}
 
 if __name__ == '__main__':
