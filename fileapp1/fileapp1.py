@@ -19,7 +19,6 @@ from PyQt5.QtWidgets import *
 class MyFileSystemModel(QFileSystemModel):
     def __init__(self):
         super().__init__()
-        self.already_read = set()
         self.db = TinyDB("already_read_db.json")
         self.backup = "backup"
         if not os.path.exists(self.backup): 
@@ -136,6 +135,8 @@ class Main(QMainWindow):
         QWidget.__init__(self)
         self.setWindowTitle("Directory")    
 
+        self.db_dirs = TinyDB("dirs.json")
+
         font = QFont()
         #font.setWeight(QFont.DemiBold)
         font.setPixelSize(16)
@@ -162,6 +163,14 @@ class Main(QMainWindow):
         self.menu.addAction(self.readOnlyAct)
         self.menuBar().addMenu(self.menu)
 
+        self.completer = QCompleter()
+        self.completer.setFilterMode(Qt.MatchContains)
+        self.completer.setCaseSensitivity(Qt.CaseInsensitive)
+        self.edit.setCompleter(self.completer)
+        self.edit_candidate = QStringListModel()
+        self.completer.setModel(self.edit_candidate)
+        self.edit_candidate.setStringList([r["name"] for r in self.db_dirs.all()])
+
         self.resize(800,400)
 
     def toggleReadOnly(self):
@@ -171,8 +180,15 @@ class Main(QMainWindow):
             self.tree1.model().setReadOnly(False)
     
     def changeDir(self):
-        self.tree1.model().setRootPath(self.edit.text())
-        self.tree1.setRootIndex(self.tree1.model().index(self.edit.text()))
+        dirname = self.edit.text()
+        self.tree1.model().setRootPath(dirname)
+        self.tree1.setRootIndex(self.tree1.model().index(dirname))
+
+        Dir = Query()
+        results = self.db_dirs.search(Dir.name == dirname)
+        if len(results) == 0:
+            self.db_dirs.insert({'name': dirname})
+        self.edit_candidate.setStringList([r["name"] for r in self.db_dirs.all()])
 
 if __name__ == '__main__':
     import sys
