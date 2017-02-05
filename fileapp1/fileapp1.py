@@ -69,7 +69,6 @@ class Tree1(QTreeView):
         self.setDropIndicatorShown(True)
 
         model = MyFileSystemModel()
-        model.setReadOnly(False)
         model.setRootPath("")
         self.setModel(model)
 
@@ -131,7 +130,8 @@ class Tree1(QTreeView):
             self.model().db.insert({'name': file_path, 'last_modified': last_modified})
         os.system("start \"\" \"{}\"".format(file_path))
 
-class Main(QWidget):
+#class Main(QWidget):
+class Main(QMainWindow):
     def __init__(self):
         QWidget.__init__(self)
         self.setWindowTitle("Directory")    
@@ -148,12 +148,27 @@ class Main(QWidget):
 
         self.edit.returnPressed.connect(self.changeDir)
 
+        cw = QWidget(self)
+
         ly1 = QVBoxLayout()
         ly1.addWidget(self.edit)
         ly1.addWidget(self.tree1)
-        self.setLayout(ly1)
+        cw.setLayout(ly1)
+        self.setCentralWidget(cw)
+
+        self.readOnlyAct = QAction("&Read Only", self, checkable = True, triggered = self.toggleReadOnly)
+        self.readOnlyAct.setChecked(True)
+        self.menu = QMenu("&Menu", self)
+        self.menu.addAction(self.readOnlyAct)
+        self.menuBar().addMenu(self.menu)
 
         self.resize(800,400)
+
+    def toggleReadOnly(self):
+        if self.readOnlyAct.isChecked():
+            self.tree1.model().setReadOnly(True)
+        else:
+            self.tree1.model().setReadOnly(False)
     
     def changeDir(self):
         self.tree1.model().setRootPath(self.edit.text())
