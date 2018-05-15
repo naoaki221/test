@@ -34,12 +34,15 @@ status = {}
 for name, ip in hosts:
     status[name] = 0
 
+sem = asyncio.Semaphore(5)
+
 async def do_ping(name, ip, q):
 
-    p = await asyncio.create_subprocess_shell( \
-        "ping -q -c 1 -W 1 {} | egrep -q \"^1 packets transmitted, 1 received,\"".format(ip))
+    with (await sem):
+        p = await asyncio.create_subprocess_shell( \
+            "ping -q -c 1 -i 3 -W 1 {} | egrep -q \"^1 packets transmitted, 1 received,\"".format(ip))
+        s = await p.wait()
 
-    s = await p.wait()
     if status[name] != s:
         if s == 0:
             q.put("{} up".format(name))
