@@ -1,0 +1,78 @@
+
+iptables -A POSTROUTING -t nat -o enp0s3 -j MASQUERADE
+firewall-cmd --add-service=dns --zone=public --permanent
+firewall-cmd --zone=trusted --change-interface=br0
+systemctl restart firewalld
+
+/etc/sysconfig/selinux
+disabled
+
+yum provides '*/radtest'
+
+lxc-create -t centos -n mac1 -- --release 7
+lxc-create -t centos -n mac2 -- --release 7
+
+chroot /usr/local/var/lib/lxc/mac1/rootfs passwd
+chroot /usr/local/var/lib/lxc/mac2/rootfs passwd
+
+vi /usr/local/var/lib/lxc/mac1/config
+vi /usr/local/var/lib/lxc/mac2/config
+
+sed -i -e '/^lxc.net.0.link/{s/lxcbr0/br0/}' /usr/local/var/lib/lxc/mac1/config
+sed -i -e '/^lxc.net.0.link/{s/lxcbr0/br0/}' /usr/local/var/lib/lxc/mac2/config
+
+cat > /usr/local/var/lib/lxc/mac1/rootfs/etc/sysconfig/network-scripts/ifcfg-eth0 <<"EOF"
+DEVICE=eth0
+ONBOOT=yes
+TYPE=Ethernet
+IPADDR=10.0.1.11
+NETMASK=255.255.255.0
+GATEWAY=10.0.1.1
+DNS1=10.0.1.1
+EOF
+
+cat > /usr/local/var/lib/lxc/mac2/rootfs/etc/sysconfig/network-scripts/ifcfg-eth0 <<"EOF"
+DEVICE=eth0
+ONBOOT=yes
+TYPE=Ethernet
+IPADDR=10.0.1.12
+NETMASK=255.255.255.0
+GATEWAY=10.0.1.1
+DNS1=10.0.1.1
+EOF
+
+
+
+lxc-start -d -n mac1
+lxc-start -d -n mac2
+
+lxc-stop -n mac1
+lxc-stop -n mac2
+
+lxc-attach -n mac1 -- bash
+
+
+iptables -P INPUT ACCEPT
+iptables -P FORWARD ACCEPT
+iptables -P OUTPUT ACCEPT
+iptables -F INPUT
+iptables -F FORWARD
+iptables -F OUTPUT
+iptables -F CHECK_PORT
+iptables -X CHECK_PORT
+
+iptables -N CHECK_PORT
+iptables -A CHECK_PORT -i eth0 -m tcp -p tcp --dport 22 -j ACCEPT
+iptables -A CHECK_PORT -i eth0 -p icmp -j ACCEPT
+
+iptables -A INPUT -i eth0 -m mac --mac-source fe:b6:04:7b:75:f7 -j CHECK_PORT
+
+iptables -P INPUT DROP
+
+iptables -nvL -t filter --line-numbers
+
+
+
+
+ping 10.0.1.11
+ssh 10.0.1.11
